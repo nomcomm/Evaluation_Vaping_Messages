@@ -8,14 +8,26 @@ library(emmeans)
 library(readr)
 
 #set directory and load file
-setwd("[Insert path to file]")
-df_total <- read_csv('study2_data_file.csv')
+setwd("/Users/suelim/Documents/Research/DONE/Evaluation_Vaping_Messages/github/Evaluation_Vaping_Messages/data/02_Data/study2")
+df_total <- read_csv('02_cleaned_data_file/study2_data_file.csv')
 
 #demographics
 table(df_total$Experimental_Group)
 mean(df_total$Age, na.rm=TRUE)
 sd(df_total$Age, na.rm=TRUE)
 table(df_total$Sex) / length(df_total$Sex)
+
+df_total_prolific <- 
+  df_total  %>% filter(df_total$recruitment_platform == "Prolific")
+mean(df_total_prolific$Age, na.rm=TRUE)
+sd(df_total_prolific$Age, na.rm=TRUE)
+table(df_total_prolific$Sex) / length(df_total_prolific$Sex)
+
+df_total_sona <- 
+  df_total  %>% filter(df_total$recruitment_platform == "SONA")
+mean(df_total_sona$Age, na.rm=TRUE)
+sd(df_total_sona$Age, na.rm=TRUE)
+table(df_total_sona$Sex) / length(df_total_sona$Sex)
 
 #creating Effects Perception (EP) and Perception of AI variables
 sum_AI_EP <- 0
@@ -44,8 +56,38 @@ AI_Message_Count <-
 df_total$AI_Message_Count <- rowSums(AI_Message_Count)
 df_total <- df_total |> relocate(AI_Message_Count, .after = Message5)
 
-# Mixed ANOVA
-df_total_3EPs <- df_total[c(1:2, 122:136, 138:152, 154)]
+#cronbach alpha
+alpha_values <- numeric(30)
+for (i in 1:15) {
+  # Create a subset for each message (AI and Human)
+  subset_ai <- df_total[, c(paste("Dis_AI", i, sep=""), paste("Con_AI", i, sep=""), paste("Unp_AI", i, sep=""))]
+  subset_hum <- df_total[, c(paste("Dis_Hum", i, sep=""), paste("Con_Hum", i, sep=""), paste("Unp_Hum", i, sep=""))]
+  # Calculate and store Cronbach's alpha for each message
+  alpha_values[i] <- alpha(subset_ai)$total$raw_alpha
+  alpha_values[i + 15] <- alpha(subset_hum)$total$raw_alpha
+}
+print(alpha_values)
+mean(alpha_values)
+
+df_new <- data.frame(
+  Per_AI3_1 = df_total$Per_AI3_1,
+  Per_AI6_1 = df_total$Per_AI6_1,
+  Per_AI8_1 = df_total$Per_AI8_1,
+  Per_AI9_1 = df_total$Per_AI9_1,
+  Per_AI10_1 = df_total$Per_AI10_1,
+  Per_AI15_1 = df_total$Per_AI15_1,
+  Per_AI19_1 = df_total$Per_AI19_1,
+  Per_AI20_1 = df_total$Per_AI20_1
+)
+
+alpha <- alpha(df_new)$total$raw_alpha
+
+mean(df_total$AIper_neg, na.rm=TRUE)
+sd(df_total$AIper_neg, na.rm=TRUE)
+hist(df_total$AIper_neg)
+
+# Restructing data structure
+df_total_3EPs <- df_total[c(1:2, 123:137, 139:153, 155)]
 df_total_3EPs_pivot <- df_total_3EPs |> 
   pivot_longer(!c(Experimental_Group, Participant, AIper_neg), names_to="Messages", 
                values_to="Effects_Perception") |> 
@@ -53,13 +95,20 @@ df_total_3EPs_pivot <- df_total_3EPs |>
 
 df_total_3EPs_pivot$Participant <- factor(df_total_3EPs_pivot$Participant)
 df_total_3EPs_pivot$Experimental_Group <- factor(df_total_3EPs_pivot$Experimental_Group)
-df_total_3EPs_pivot$AI_or_Hum <- factor(df_total_3EPs_pivot$AI_or_Hum)
+df_total_3EPs_pivot$AI_or_Hum <- as.factor(df_total_3EPs_pivot$AI_or_Hum)
 df_total_3EPs_pivot$Experimental_Group <- relevel(df_total_3EPs_pivot$Experimental_Group, ref = "Not Disclosed")
 df_total_3EPs_pivot$AI_or_Hum <- relevel(df_total_3EPs_pivot$AI_or_Hum, ref = "AI")
+df_total_3EPs_pivot$Messages <- factor(df_total_3EPs_pivot$Messages)
 
+df_total_3EPs_pivot %>%
+  group_by(Experimental_Group, AI_or_Hum) %>%
+  get_summary_stats(Effects_Perception, type = "mean_sd")
+
+#mixed effects modeling
 total_EP3_ANOVA <- 
-  lmer(Effects_Perception ~ Experimental_Group * AI_or_Hum * AIper_neg + (1 | Participant), data = df_total_3EPs_pivot)
+  lmer(Effects_Perception ~ Experimental_Group * AI_or_Hum * AIper_neg + (1 | Participant) + (1 | Messages), data = df_total_3EPs_pivot)
 summary(total_EP3_ANOVA)
+anova(total_EP3_ANOVA, type="3")
 
 ##Data visualization
 ##calculate mean and +- 1 SD for negative attitudes towards AI
@@ -73,13 +122,45 @@ predict_mean <-
   emmeans(total_EP3_ANOVA, ~ Experimental_Group * AI_or_Hum * AIper_neg, at = list(AIper_neg = c(1, 2, 3, 4, 5)))
 predict_mean_df <- as.data.frame(predict_mean)
 
-ggplot(predict_mean_df, aes(x = AIper_neg, y = emmean, color = AI_or_Hum)) +
-  geom_line(size = 1.25) + 
-  facet_wrap(~Experimental_Group) +
-  labs(x = "Mean Negative Attitudes Towards AI", y = "Effects Perception", color = "Message Source") +
-  theme_bw() + 
+ggplot(predict_mean_df, aes(x = AIper_neg, y = emmean, color = AI_or_Hum, linetype = Experimental_Group)) +
+  geom_line(size = 1.25) +
+  #facet_wrap(~Experimental_Group) +
+  labs(
+    x = "Mean Negative Attitudes Towards AI",
+    y = "Effects Perception",
+    color = "Message Source",
+    linetype = "Experimental_Group "  # Adjust the legend title for linetype
+  ) +
+  theme_bw() +
   scale_colour_manual(values = c("AI" = "steelblue", "Human" = "darkgreen")) +
-  ylim(1,5)
+  scale_linetype_manual(values = c("Disclosed" = "solid", "Not Disclosed" = "twodash")) +
+  ylim(3, 4.75) # Customize line types
+
+
+predict_mean2 <- 
+  emmeans(total_EP3_ANOVA, ~ Experimental_Group * AI_or_Hum * AIper_neg, at = list(AIper_neg = c(2.24, 3.04, 3.84)))
+predict_mean2_df <- as.data.frame(predict_mean2)
+
+ggplot(predict_mean2_df, aes(x = Experimental_Group, y = emmean)) +
+  geom_line(aes(group = AI_or_Hum, linetype = Experimental_Group), position = position_dodge(0.3), color="dimgray") +  # Use linetype aesthetic based on disclosure status
+  geom_point(aes(color = AI_or_Hum), position = position_dodge(0.3), size=3) +
+  geom_errorbar(
+    aes(ymin = asymp.LCL, ymax = asymp.UCL, color = AI_or_Hum),
+    width = 0.2,
+    position = position_dodge(0.3)
+  ) +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(
+    y = "Effects Perception",
+    x = NULL,
+    color = "Message Source",
+    linetype = "Experimental_Group"  # Add a title for the linetype legend if needed
+  ) +
+  facet_wrap(~AIper_neg) +
+  theme_bw() +
+  scale_color_manual(values = c("AI" = "steelblue", "Human" = "darkgreen")) +
+  scale_linetype_manual(values = c("Disclosed" = "solid", "Not Disclosed" = "dotted")) +  # Define linetypes for "disclosed" and "not disclosed"
+  ylim(3.25, 4.75)
 
 pairs(emmeans(total_EP3_ANOVA, ~ Experimental_Group * AI_or_Hum * AIper_neg, at = list(AI_or_Hum = "AI", AIper_neg = 2.24)))
 pairs(emmeans(total_EP3_ANOVA, ~ Experimental_Group * AI_or_Hum * AIper_neg, at = list(AI_or_Hum = "AI", AIper_neg = 3.04)))
@@ -88,10 +169,11 @@ pairs(emmeans(total_EP3_ANOVA, ~ Experimental_Group * AI_or_Hum * AIper_neg, at 
 pairs(emmeans(total_EP3_ANOVA, ~ Experimental_Group * AI_or_Hum * AIper_neg, at = list(AI_or_Hum = "Human", AIper_neg = 3.04)))
 pairs(emmeans(total_EP3_ANOVA, ~ Experimental_Group * AI_or_Hum * AIper_neg, at = list(AI_or_Hum = "Human", AIper_neg = 3.84)))
 
+
 #Poisson regression of number of AI-generated messages selected
 colnames(df_total)
-df_total_MS <- df_total[c(1:2, 11, 154)]
-df_total_MS$Experimental_Group <- factor(df_total_MS$Experimental_Group)
+df_total_MS <- df_total[c(1:2, 11, 155)]
+df_total_MS$Experimental_Group <- as.factor(df_total_MS$Experimental_Group)
 df_total_MS$Experimental_Group <- relevel(df_total_MS$Experimental_Group, ref = "Not Disclosed")
 
 message_preference <-
@@ -107,8 +189,7 @@ ggplot(predict_count_df, aes(x = AIper_neg, y = rate)) +
   geom_ribbon(aes(ymin = asymp.LCL, ymax = asymp.UCL), alpha = 0.2)+
   facet_wrap(~Experimental_Group) +
   labs(x = "Mean Negative Attitudes Towards AI", y = "Predicted # of AI-Generated Messages Selected", color = "Message Source") +
-  theme_bw() + 
-  ylim(0,5)
+  theme_bw()
 
 results_list <- list()
 for(ai_val in c(2.24, 3.04, 3.84)) {
