@@ -11,21 +11,6 @@ library(readr)
 setwd("/Users/suelim/Documents/Research/DONE/Evaluation_Vaping_Messages/github/Evaluation_Vaping_Messages/data/02_Data/study2")
 df_total <- read_csv('02_cleaned_data_file/study2_data_file.csv')
 
-#demographics
-df_total_prolific <- 
-  df_total  %>% filter(df_total$recruitment_platform == "Prolific")
-table(df_total_prolific$Experimental_Group)
-mean(df_total_prolific$Age, na.rm=TRUE)
-sd(df_total_prolific$Age, na.rm=TRUE)
-table(df_total_prolific$Sex) / length(df_total_prolific$Sex)
-
-df_total_sona <- 
-  df_total  %>% filter(df_total$recruitment_platform == "SONA")
-table(df_total_sona$Experimental_Group)
-mean(df_total_sona$Age, na.rm=TRUE)
-sd(df_total_sona$Age, na.rm=TRUE)
-table(df_total_sona$Sex) / length(df_total_sona$Sex)
-
 #creating Effects Perception (EP) and Perception of AI variables
 sum_AI_EP <- 0
 sum_Human_EP <- 0
@@ -282,3 +267,20 @@ for(name in names(results_list)) {
   cat("\nResults for", name, ":\n")
   print(results_list[[name]])
 }
+
+
+
+#demographics
+df_total_prolific <- 
+  df_total  %>% filter(df_total$recruitment_platform == "Prolific")
+table(df_total_prolific$Experimental_Group)
+mean(df_total_prolific$Age, na.rm=TRUE)
+sd(df_total_prolific$Age, na.rm=TRUE)
+table(df_total_prolific$Sex) / length(df_total_prolific$Sex)
+
+df_total_sona <- 
+  df_total  %>% filter(df_total$recruitment_platform == "SONA")
+table(df_total_sona$Experimental_Group)
+mean(df_total_sona$Age, na.rm=TRUE)
+sd(df_total_sona$Age, na.rm=TRUE)
+table(df_total_sona$Sex) / length(df_total_sona$Sex)
